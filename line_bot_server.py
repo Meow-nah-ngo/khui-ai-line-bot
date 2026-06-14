@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import json
 import urllib.request
 import urllib.parse
@@ -11,7 +12,7 @@ app = Flask(__name__)
 # 🔑 LINE & Gemini API Credentials
 CHANNEL_ACCESS_TOKEN = "cJ5z7ciA1zbeT2NaG0piI9hlaV8PlTsuyk1uITYyDiuTKPkkzGuA3CZyzV6PDydrJ/jatnBOlxRMhYp9TQsYZeIqpz1mHUgHK3LDZr1t16Z9Inq67txbBnV+TsY8pypvs+sj8jUrpbubUuThHG7p2wdB04t89/1O/w1cDnyilFU="
 CHANNEL_SECRET = "93a67dc472e7ec30ad50892849b80a63"
-GEMINI_API_KEY = "AQ.Ab8RN6I0s1nebdgVc18Q6YzfI0LxzsY1oW3tvkmzX0iH_StAkQ"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 ALLOWED_USER_ID = "U3492288d7c4c50b83572e5af0a84bd06"
 
 # 🧠 หน่วยความจำสถานะการคุยของผู้เล่น (Conversation Session State)
