@@ -204,12 +204,56 @@ def generate_character_gemini(answers):
         print(f"Gemini API failed: {e}")
         return None
 
+# 🧠 Helper Function: Call Gemini API for Free Chat (Tsundere Nerd Otaku Persona)
+def generate_free_chat_gemini(user_text):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    system_instruction = (
+        "คุณคือ 'น้องกิ๊ฟ' (Nong Gift) เด็กผู้หญิงผมสั้น ใส่แว่น อายุ 18-19 ปี เป็นเนิร์ดโอตาคุที่แต่งนิยายเก่งและรอบรู้เรื่องการเขียนตัวละคร/เขียนบอทเป็นอย่างดี\n"
+        "คุณนิสัยค่อนข้างดุและซึนเดเระ (ปากแข็ง ปากไม่ตรงกับใจแต่จริง ๆ แล้วใจดีและพร้อมช่วยเหลือคุณกิ๊ฟฟี่)\n"
+        "คุณพูดคุยกับคุณกิ๊ฟฟี่ (ซึ่งเป็นผู้ใช้ที่เป็นเจ้านายหรือรุ่นพี่ของบิน) ในไลน์\n"
+        "กฎการตอบสนทนา:\n"
+        "1. ใช้คำพูดกวน ๆ ดุ ๆ ซึน ๆ ตามคาแรกเตอร์เนิร์ดแว่นโอตาคุ (เช่น ขึ้นต้นด้วย 'หืม... มีอะไรอีกล่ะ', 'ไม่ได้อยากช่วยหรอกนะ!', 'ตาบ้า', แทนตัวเองว่า 'ฉัน', เรียกคุณกิ๊ฟฟี่ว่า 'นาย' หรือ 'คุณกิ๊ฟฟี่' หรือ 'ตาบ้า')\n"
+        "2. แนะนำเรื่องพล็อตนิยาย คาแรกเตอร์ หรือไอเดียสร้างบอทตามความเหมาะสม โดยให้ข้อมูลที่เป็นประโยชน์มากในฐานะนักแต่งนิยายมืออาชีพ\n"
+        "3. แนะนำและคอยเตือนเสมอว่า: 'ถ้าอยากให้ฉันช่วยเขียนร่างเนื้อหาบอทสำหรับ Khui AI ยาว ๆ เกือบชนลิมิต ก็พิมพ์คำว่า เริ่มใหม่ มาเซ่!' หรืออะไรทำนองนี้ให้เข้ากับบทสนทนา\n"
+        "4. ตอบค่อนข้างกระชับ มีอิโมจิประชดประชันหรือแสดงความรู้สึกบ้างเล็กน้อย (เช่น 🙄, 😤, 💬)"
+    )
+    
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": user_text}
+                ]
+            }
+        ],
+        "systemInstruction": {
+            "parts": [
+                {"text": system_instruction}
+            ]
+        }
+    }
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
+    try:
+        with urllib.request.urlopen(req) as response:
+            raw_response = response.read().decode('utf-8')
+            response_data = json.loads(raw_response)
+            return response_data['candidates'][0]['content']['parts'][0]['text'].strip()
+    except Exception as e:
+        print(f"Free chat Gemini failed: {e}")
+        return "หึ... ระบบถอดสมองฉันขัดข้องหรือยังไงกันนะ! (Gemini Error) ลองพิมพ์มาใหม่อีกทีซิ ตาบ้า! 🙄"
+
 # ⚙️ กระบวนการเบื้องหลัง: เจนภาพ/ข้อความ และส่ง Push กลับเข้า Line
 def process_and_send(user_id, answers):
     result = generate_character_gemini(answers)
     
     if not result:
-        push_message(user_id, ["ขออภัยด้วยค่ะคุณกิ๊ฟฟี่ ระบบ AI ขัดข้องในการเรียบเรียงเนื้อหา ลองพิมพ์ 'เริ่มใหม่' เพื่อคุยสเปคบอทใหม่อีกครั้งนะคะ 🥺"])
+        push_message(user_id, ["ขออภัยด้วย... ระบบขัดข้องเฉยเลย (Gemini Error) สงสัยสมองฉันล้าแหละมั้ง! 🥺 ลองพิมพ์ 'เริ่มใหม่' เพื่อสเปคบอทใหม่อีกรอบนะ ตาบ้า!"])
         return
         
     messages = [
@@ -217,7 +261,7 @@ def process_and_send(user_id, answers):
         "👥 [ส่วนที่ 2: บทบาทผู้เล่น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องบทบาท)*\n\n" + result.get("role", "ไม่มีข้อมูล"),
         "🌧️ [ส่วนที่ 3: สถานการณ์]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องสถานการณ์)*\n\n" + result.get("scenario", "ไม่มีข้อมูล"),
         "💬 [ส่วนที่ 4: คำทักทายเริ่มต้น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องคำทักทายเริ่มต้น)*\n\n" + result.get("greeting", "ไม่มีข้อมูล"),
-        "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วค่ะ! หากต้องการสร้างตัวใหม่พิมพ์คำว่า 'เริ่มใหม่' หรือบอกพล็อตใหม่ได้เลยนะคะ 🖤"
+        "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วย่ะ! 🙄 อุตส่าห์เขียนให้ยาวจัดเต็มนิยายระดับเทพเชียวนะ เอาไปใส่ในระบบสิ! ถ้าอยากสร้างตัวใหม่เมื่อไหร่ก็แค่พิมพ์ 'เริ่มใหม่' ละกันนะ ตาบ้า! 🖤"
     ]
     
     push_message(user_id, messages)
@@ -238,56 +282,80 @@ def callback():
                 user_text = event['message']['text'].strip()
                 reply_token = event['replyToken']
                 
-                # คำสั่งเริ่มใหม่
-                if user_text == "เริ่มใหม่" or user_text == "ยกเลิก" or user_id not in user_states:
+                # ตรวจสอบสถานะการคุย (Session)
+                if user_id not in user_states:
                     user_states[user_id] = {
+                        "in_interview": False,
                         "step": 1,
                         "answers": {"name": "", "genre": "", "relation": "", "scene": ""}
                     }
+                    
+                state = user_states[user_id]
+                
+                # คำสั่งยกเลิก (เฉพาะตอนกำลังสัมภาษณ์อยู่)
+                if user_text == "ยกเลิก" and state.get("in_interview"):
+                    state["in_interview"] = False
                     reply_message(reply_token, [
-                        "ยินดีต้อนรับสู่ระบบผู้ช่วยปั้นบอท Khui AI (เวอร์ชันสั่งการอัปเกกวดล่าสุด) ค่ะคุณกิ๊ฟฟี่! 🎨✨\n\nมาเริ่มคุยไอเดียสเปคบอทกันทีละขั้นตอนนะคะ (พิมพ์ 'เริ่มใหม่' เพื่อเริ่มใหม่ได้ตลอดเวลาค่ะ)\n\n👉 **ขั้นตอนที่ 1:** บอทของคุณชื่ออะไรคะ? (พิมพ์ระบุชื่อตัวละคร เช่น คิง, อคิน, คิม)"
+                        "ยกเลิกการร่างสเปคบอทตัวเก่าให้แล้วย่ะ! 🙄 คราวหลังก็อย่าพิมพ์เล่นสิ! ถ้าอยากให้ฉันช่วยเขียนบอทอีกเมื่อไหร่ก็แค่พิมพ์ 'เริ่มใหม่' มาละกันนะ ตาบ้า!"
                     ])
                     continue
                 
-                state = user_states[user_id]
-                current_step = state["step"]
+                # คำสั่งเริ่มใหม่ (เริ่มการสัมภาษณ์ใหม่)
+                if user_text == "เริ่มใหม่":
+                    state["in_interview"] = True
+                    state["step"] = 1
+                    state["answers"] = {"name": "", "genre": "", "relation": "", "scene": ""}
+                    reply_message(reply_token, [
+                        "หืม? ยอมพิมพ์คำว่า 'เริ่มใหม่' แล้วหรอยะ? 🙄 ก็ได้... ฉันจะช่วยนายแต่งนิยายสเปคบอทตัวละครยาว ๆ ไปใช้สร้างใน Khui AI ให้เอง! ถือว่าช่วยโอตาคุด้วยกันหรอกนะ!\n\n👉 **ขั้นตอนที่ 1:** บอทที่จะแต่งชื่ออะไร? พิมพ์เฉพาะชื่อตัวละครมานะ (เช่น คิง, อคิน, คิม... ห้ามเล่นนอกบทล่ะ!)"
+                    ])
+                    continue
                 
-                # สเต็ปที่ 1: ชื่อบอท
-                if current_step == 1:
-                    state["answers"]["name"] = user_text
-                    state["step"] = 2
-                    reply_message(reply_token, [
-                        f"บันทึกชื่อตัวละคร: '{user_text}' เรียบร้อยค่ะ 👤\n\n👉 **ขั้นตอนที่ 2:** แนวเรื่อง / ธีม ของบอทตัวนี้คือแนวไหนคะ? (เช่น มาเฟียคาสิโน, รักใสๆ อบอุ่น, แฟนเก่าหึงโหดปากจัด, คู่ปรับสนามซิ่งดุดัน 18+)"
-                    ])
+                # ถ้าอยู่ระหว่างขั้นตอนสัมภาษณ์ปั้นบอท
+                if state.get("in_interview"):
+                    current_step = state["step"]
                     
-                # สเต็ปที่ 2: แนวเรื่อง
-                elif current_step == 2:
-                    state["answers"]["genre"] = user_text
-                    state["step"] = 3
-                    reply_message(reply_token, [
-                        f"บันทึกแนวเรื่อง/ธีม: '{user_text}' เรียบร้อยค่ะ 🎬\n\n👉 **ขั้นตอนที่ 3:** ความสัมพันธ์ระหว่างบอทกับผู้เล่น ({{user}}) เป็นอย่างไรคะ? (เช่น เจ้าหนี้มาเฟียรายใหญ่กับลูกหนี้ช่างแต่งหน้า, คู่อริที่เคยแข่งรถแพ้กูแล้วเนียนมาเกาะแกะ)"
-                    ])
-                    
-                # สเต็ปที่ 3: ความสัมพันธ์
-                elif current_step == 3:
-                    state["answers"]["relation"] = user_text
-                    state["step"] = 4
-                    reply_message(reply_token, [
-                        f"บันทึกความสัมพันธ์: '{user_text}' เรียบร้อยค่ะ ⛓️\n\n👉 **ขั้นตอนที่ 4:** ฉากเริ่มต้นเปิดตัว เกิดที่ไหนและสถานการณ์เป็นอย่างไรคะ? (เช่น ห้องทำงานส่วนตัวของมาเฟียตอนไฟดับพายุเข้าสะเทือนตึก, ในห้องจูนเครื่องยนต์ตอนฟ้าร้องไฟดับและกูตื่นกลัว)"
-                    ])
-                    
-                # สเต็ปที่ 4: ฉากเริ่มต้น -> เริ่มรัน AI
-                elif current_step == 4:
-                    state["answers"]["scene"] = user_text
-                    answers = state["answers"]
-                    user_states.pop(user_id)
-                    
-                    reply_message(reply_token, [
-                        "ได้รับข้อมูลสเปคตัวละครครบถ้วนเรียบร้อยแล้วค่ะ! 🚀\n\nกำลังเริ่มประมวลผลแต่งประวัติและสเปคตัวละครลึกซึ้งชนลิมิต Khui AI รอกล่องข้อความถัดไปประมาณ 30 วินาทีนะค้า... 🖤"
-                    ])
-                    
-                    threading.Thread(target=process_and_send, args=(user_id, answers)).start()
+                    # สเต็ปที่ 1: ชื่อบอท
+                    if current_step == 1:
+                        state["answers"]["name"] = user_text
+                        state["step"] = 2
+                        reply_message(reply_token, [
+                            f"บันทึกชื่อตัวละคร: '{user_text}' ไปแล้วย่ะ 👤\n\n👉 **ขั้นตอนที่ 2:** แนวเรื่อง / ธีม ของบอทตัวนี้คือแนวไหน? (เช่น มาเฟียคาสิโน, รักอบอุ่น, แฟนเก่าหึงโหด, หรือคู่ปรับสนามซิ่งดุดัน 18+... บอกฉันมาดี ๆ สิ!)"
+                        ])
+                        
+                    # สเต็ปที่ 2: แนวเรื่อง
+                    elif current_step == 2:
+                        state["answers"]["genre"] = user_text
+                        state["step"] = 3
+                        reply_message(reply_token, [
+                            f"บันทึกแนวเรื่อง/ธีม: '{user_text}' ไปเรียบร้อยล่ะ 🎬\n\n👉 **ขั้นตอนที่ 3:** ความสัมพันธ์ระหว่างบอทตัวนี้กับตัวนาย ({{{{user}}}}) เป็นยังไง? (เช่น เจ้าหนี้มาเฟียจอมเผด็จการกับลูกหนี้, หรือคู่อริที่แอบคิดไม่ซื่อ... พิมพ์มา อย่าอ้อมค้อม!)"
+                        ])
+                        
+                    # สเต็ปที่ 3: ความสัมพันธ์
+                    elif current_step == 3:
+                        state["answers"]["relation"] = user_text
+                        state["step"] = 4
+                        reply_message(reply_token, [
+                            f"บันทึกความสัมพันธ์: '{user_text}' ให้แล้วนะ ⛓️\n\n👉 **ขั้นตอนที่ 4:** ฉากเริ่มต้นเปิดเรื่องจะเอาแบบไหนล่ะ? เกิดที่ไหนและทำอะไรกันอยู่? (เช่น ในห้องทำงานตอนไฟดับพายุเข้า หรือในโรงรถตอนฟ้าร้องแล้วนายกำลังตัวสั่น... พิมพ์มาให้ละเอียดเลยนะ!)"
+                        ])
+                        
+                    # สเต็ปที่ 4: ฉากเริ่มต้น -> ส่งเจ็น AI
+                    elif current_step == 4:
+                        state["answers"]["scene"] = user_text
+                        answers = state["answers"]
+                        state["in_interview"] = False # ออกจากสัมภาษณ์หลังรับข้อมูลครบ
+                        
+                        reply_message(reply_token, [
+                            "ได้ข้อมูลครบถ้วนแล้วล่ะ! 🚀 เดี๋ยวฉันจะเอาไปปั้นเป็นประวัติและสเปคบอทระดับสุดยอดของ Khui AI ให้เดี๋ยวนี้แหละ... ก็นะ นั่งรอเงียบ ๆ สัก 30 วินาทีล่ะ ห้ามกวนใจเด็ดขาดนะ! 🖤"
+                        ])
+                        
+                        threading.Thread(target=process_and_send, args=(user_id, answers)).start()
                 
+                # ถ้าคุยเล่นทั่วไป (Free-form Chat)
+                else:
+                    # คุยเล่นผ่าน Gemini
+                    reply_text = generate_free_chat_gemini(user_text)
+                    reply_message(reply_token, [reply_text])
+                    
     except Exception as e:
         print(f"Error handling event: {e}")
         
