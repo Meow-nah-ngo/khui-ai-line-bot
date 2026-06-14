@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import json
 import urllib.request
 import urllib.parse
@@ -249,6 +250,18 @@ def generate_free_chat_gemini(user_text):
         print(f"Free chat Gemini failed: {e}")
         return "หึ... ระบบถอดสมองฉันขัดข้องหรือยังไงกันนะ! (Gemini Error) ลองพิมพ์มาใหม่อีกทีซิ ตาบ้า! 🙄"
 
+# 📝 Helper Function: Generate Confirmation Summary Message
+def get_confirmation_summary(answers):
+    return (
+        "📝 **ตรวจสอบความถูกต้องสเปคบอท:**\n"
+        f"1️⃣ **ชื่อตัวละคร:** {answers.get('name')}\n"
+        f"2️⃣ **แนวเรื่อง / ธีม:** {answers.get('genre')}\n"
+        f"3️⃣ **ความสัมพันธ์:** {answers.get('relation')}\n"
+        f"4️⃣ **ฉากเริ่มต้น:** {answers.get('scene')}\n\n"
+        "👉 พิมพ์ **'ยืนยัน'** เพื่อเริ่มแต่งเนื้อหาทันที\n"
+        "👉 หรือพิมพ์ **'แก้ไข [หมายเลข]'** (เช่น `แก้ไข 2`) เพื่อเปลี่ยนคำตอบข้อนั้นค่ะ! 😤"
+    )
+
 # ⚙️ กระบวนการเบื้องหลัง: เจนภาพ/ข้อความ และส่ง Push กลับเข้า Line
 def process_and_send(user_id, answers):
     result = generate_character_gemini(answers)
@@ -339,17 +352,62 @@ def callback():
                             f"บันทึกความสัมพันธ์: '{user_text}' ให้แล้วนะ ⛓️\n\n👉 **ขั้นตอนที่ 4:** ฉากเริ่มต้นเปิดเรื่องจะเอาแบบไหนล่ะ? เกิดที่ไหนและทำอะไรกันอยู่? (เช่น ในห้องทำงานตอนไฟดับพายุเข้า หรือในโรงรถตอนฟ้าร้องแล้วนายกำลังตัวสั่น... พิมพ์มาให้ละเอียดเลยนะ!)"
                         ])
                         
-                    # สเต็ปที่ 4: ฉากเริ่มต้น -> ส่งเจ็น AI
+                    # สเต็ปที่ 4: ฉากเริ่มต้น -> ไปหน้าตรวจสอบความถูกต้อง (Step 5)
                     elif current_step == 4:
                         state["answers"]["scene"] = user_text
-                        answers = state["answers"]
-                        state["in_interview"] = False # ออกจากสัมภาษณ์หลังรับข้อมูลครบ
-                        
+                        state["step"] = 5
                         reply_message(reply_token, [
-                            "ได้ข้อมูลครบถ้วนแล้วล่ะ! 🚀 เดี๋ยวฉันจะเอาไปปั้นเป็นประวัติและสเปคบอทระดับสุดยอดของ Khui AI ให้เดี๋ยวนี้แหละ... ก็นะ นั่งรอเงียบ ๆ สัก 30 วินาทีล่ะ ห้ามกวนใจเด็ดขาดนะ! 🖤"
+                            "บันทึกข้อมูลสเปคครบถ้วนแล้วย่ะ! 📝\n\n" + get_confirmation_summary(state["answers"])
                         ])
                         
-                        threading.Thread(target=process_and_send, args=(user_id, answers)).start()
+                    # สเต็ปที่ 5: หน้าจอทบทวนความถูกต้อง (Confirmation Screen)
+                    elif current_step == 5:
+                        # ตรวจสอบการพิมพ์ ยืนยัน
+                        if user_text in ["ยืนยัน", "คอนเฟิร์ม", "yes", "confirm", "ok"]:
+                            answers = state["answers"]
+                            state["in_interview"] = False # ออกจากสัมภาษณ์หลังกดยืนยัน
+                            
+                            reply_message(reply_token, [
+                                "ได้รับคำยืนยันแล้วล่ะ! 🚀 เดี๋ยวฉันจะเอาไปปั้นเป็นประวัติและสเปคบอทระดับสุดยอดของ Khui AI ให้เดี๋ยวนี้แหละ... ก็นะ นั่งรอเงียบ ๆ สัก 30 วินาทีล่ะ ห้ามกวนใจเด็ดขาดนะ! 🖤"
+                            ])
+                            
+                            threading.Thread(target=process_and_send, args=(user_id, answers)).start()
+                        
+                        # ตรวจสอบการพิมพ์ แก้ไข [หมายเลข]
+                        else:
+                            match = re.search(r'(?:แก้ไข|แก้)\s*([1-4])', user_text)
+                            if match:
+                                edit_num = int(match.group(1))
+                                state["editing_step"] = edit_num
+                                state["step"] = 6
+                                
+                                if edit_num == 1:
+                                    reply_message(reply_token, ["เปลี่ยนชื่อตัวละครเป็นอะไรดีล่ะ? พิมพ์ชื่อใหม่มาเลยย่ะ! 👤"])
+                                elif edit_num == 2:
+                                    reply_message(reply_token, ["เปลี่ยนแนวเรื่อง/ธีมเป็นอะไรล่ะ? พิมพ์แนวใหม่มาเลย! 🎬"])
+                                elif edit_num == 3:
+                                    reply_message(reply_token, ["เปลี่ยนความสัมพันธ์กับ {{{{user}}}} เป็นแบบไหน? พิมพ์สเปคใหม่มาเลย! ⛓️"])
+                                elif edit_num == 4:
+                                    reply_message(reply_token, ["เปลี่ยนฉากเริ่มต้นเปิดเรื่องเป็นแบบไหน? พิมพ์รายละเอียดฉากใหม่มาเลย! 🌧️"])
+                            else:
+                                reply_message(reply_token, [
+                                    "พิมพ์ 'ยืนยัน' เพื่อเริ่มแต่งบอท หรือพิมพ์ 'แก้ไข [ตัวเลข]' (เช่น แก้ไข 2) เพื่อเปลี่ยนคำตอบข้อนั้นซิ ตาบ้า! 🙄\n\n" + get_confirmation_summary(state["answers"])
+                                ])
+                                
+                    # สเต็ปที่ 6: รับคำตอบใหม่ที่แก้ไขแล้ว
+                    elif current_step == 6:
+                        edit_num = state.get("editing_step", 1)
+                        keys = {1: "name", 2: "genre", 3: "relation", 4: "scene"}
+                        target_key = keys.get(edit_num, "name")
+                        
+                        # บันทึกค่าแก้ไข
+                        state["answers"][target_key] = user_text
+                        state["step"] = 5 # กลับไปหน้ายืนยันข้อมูล
+                        state["editing_step"] = None
+                        
+                        reply_message(reply_token, [
+                            f"แก้ไขข้อมูลข้อที่ {edit_num} เรียบร้อยแล้วย่ะ! 😤\n\n" + get_confirmation_summary(state["answers"])
+                        ])
                 
                 # ถ้าคุยเล่นทั่วไป (Free-form Chat)
                 else:
