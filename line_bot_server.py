@@ -133,7 +133,7 @@ def generate_character_gemini(answers):
         "ชื่อจริง / ชื่อเล่น / เพศ / อายุ / สัญชาติ / อาชีพหรือสถานะในเนื้อเรื่อง / การศึกษาหรือภูมิหลัง / รูปร่าง (ส่วนสูง-น้ำหนัก) / รสนิยมทางเพศและความต้องการครอบงำ {{{{user}}}}\n"
         "👾 รูปลักษณ์ภายนอก (Appearance Details)\n"
         "บรรยายทรงผม, ใบหน้า, แววตา, รูปร่าง, รอยแผลเป็น/รอยสัก/สัญลักษณ์พิเศษ, เครื่องแต่งกายปกติ และเครื่องแต่งกายในฉากสำคัญ\n"
-        "✨ เสน่ห์หรือกลิ่นประจำตัว: (บรรยายฟีลลิ่ง น้ำหอม หรือกลิ่นอายที่แผ่ออกมาจากตัวละครที่กระตุณ์อารมณ์ได้ดี)\n"
+        "✨ เสน่ห์หรือกลิ่นประจำตัว: (บรรยายฟีลลิ่ง น้ำหอม หรือกลิ่นอายที่แผ่ออกมาจากตัวละครที่กระตุ้นอารมณ์ได้ดี)\n"
         "🧠 ลักษณะนิสัยและพฤติกรรม (Personality & Psychology)\n"
         "จุดเด่นทางอารมณ์, พฤติกรรมเมื่ออยู่กับ {{{{user}}}} (เน้นความสัมพันธ์แบบมีอำนาจเหนือกว่า หรือเคมีที่ดึงดูดกันรุนแรง), ความย้อนแย้งในใจ (เช่น ปากแข็งแต่คลั่งรัก หรือทำเป็นนิ่งแต่หึงโหด)\n"
         "🔞 รสนิยมและพฤติกรรมทางเพศ (18+ Sexual Preferences)\n"
@@ -232,10 +232,10 @@ def generate_character_gemini(answers):
         error_body = e.read().decode('utf-8')
         print(f"Gemini API HTTP Error ({e.code}): {e.reason}")
         print(f"Error Details: {error_body}")
-        return None
+        raise Exception(f"Gemini API HTTP Error {e.code}: {e.reason}\nDetails: {error_body}")
     except Exception as e:
         print(f"Gemini API failed: {e}")
-        return None
+        raise Exception(f"Gemini API Exception: {str(e)}")
 
 # 🧠 Helper Function: Call Gemini API for Free Chat (Tsundere Nerd Otaku Persona)
 def generate_free_chat_gemini(user_text):
@@ -298,21 +298,27 @@ def get_confirmation_summary(answers):
 
 # ⚙️ กระบวนการเบื้องหลัง: เจนภาพ/ข้อความ และส่ง Push กลับเข้า Line
 def process_and_send(user_id, answers):
-    result = generate_character_gemini(answers)
-    
-    if not result:
-        push_message(user_id, ["ขออภัยด้วย... ระบบขัดข้องเฉยเลย (Gemini Error) สงสัยสมองฉันล้าแหละมั้ง! 🥺 ลองพิมพ์ 'เริ่มใหม่' เพื่อสเปคบอทใหม่อีกรอบนะ ตาบ้า!"])
-        return
+    try:
+        result = generate_character_gemini(answers)
         
-    messages = [
-        "👾 [ส่วนที่ 1: ประวัติตัวละคร]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องประวัติตัวละคร)*\n\n" + result.get("bio", "ไม่มีข้อมูล"),
-        "👥 [ส่วนที่ 2: บทบาทผู้เล่น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องบทบาท)*\n\n" + result.get("role", "ไม่มีข้อมูล"),
-        "🌧️ [ส่วนที่ 3: สถานการณ์]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องสถานการณ์)*\n\n" + result.get("scenario", "ไม่มีข้อมูล"),
-        "💬 [ส่วนที่ 4: คำทักทายเริ่มต้น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องคำทักทายเริ่มต้น)*\n\n" + result.get("greeting", "ไม่มีข้อมูล"),
-        "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วย่ะ! 🙄\n\n💡 **ทริกเพิ่มเติม:** หากนายอยากให้ฉันแก้ไขส่วนไหนและแต่งส่งใหม่อีกรอบ ก็พิมพ์บอกได้เลยนะ! เช่น พิมพ์ว่า **'แก้ไข 2'** เพื่อเปลี่ยนอายุตัวละคร แล้วสั่งปั้นใหม่ได้เลย ตาบ้า! 🖤"
-    ]
-    
-    push_message(user_id, messages)
+        if not result:
+            push_message(user_id, ["ขออภัยด้วย... ระบบขัดข้องเฉยเลย (Gemini Error) ลองพิมพ์ 'เริ่มใหม่' นะคะ"])
+            return
+            
+        messages = [
+            "👾 [ส่วนที่ 1: ประวัติตัวละคร]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องประวัติตัวละคร)*\n\n" + result.get("bio", "ไม่มีข้อมูล"),
+            "👥 [ส่วนที่ 2: บทบาทผู้เล่น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องบทบาท)*\n\n" + result.get("role", "ไม่มีข้อมูล"),
+            "🌧️ [ส่วนที่ 3: สถานการณ์]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องสถานการณ์)*\n\n" + result.get("scenario", "ไม่มีข้อมูล"),
+            "💬 [ส่วนที่ 4: คำทักทายเริ่มต้น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องคำทักทายเริ่มต้น)*\n\n" + result.get("greeting", "ไม่มีข้อมูล"),
+            "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วย่ะ! 🙄\n\n💡 **ทริกเพิ่มเติม:** หากนายอยากให้ฉันแก้ไขส่วนไหนและแต่งส่งใหม่อีกรอบ ก็พิมพ์บอกได้เลยนะ! เช่น พิมพ์ว่า **'แก้ไข 2'** เพื่อเปลี่ยนอายุตัวละคร แล้วสั่งปั้นใหม่ได้เลย ตาบ้า! 🖤"
+        ]
+        
+        push_message(user_id, messages)
+    except Exception as e:
+        import traceback
+        err_msg = f"เกิดข้อผิดพลาดในการเรียกใช้ Gemini API ย่ะ:\n\n{str(e)}\n\n(ลองดูว่าตั้งค่า environment variables ใน Render ครบหรือยังนะย่ะ!)"
+        print(f"process_and_send error: {traceback.format_exc()}")
+        push_message(user_id, [err_msg[:2000]])
 
 @app.route("/callback", methods=['POST'])
 def callback():
