@@ -26,9 +26,17 @@ def reply_message(reply_token, messages):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {CHANNEL_ACCESS_TOKEN}"
     }
+    
+    formatted_messages = []
+    for msg in messages[:5]:
+        if isinstance(msg, dict):
+            formatted_messages.append(msg)
+        else:
+            formatted_messages.append({"type": "text", "text": str(msg)})
+            
     payload = {
         "replyToken": reply_token,
-        "messages": [{"type": "text", "text": msg} for msg in messages[:5]]
+        "messages": formatted_messages
     }
     req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
     try:
@@ -36,6 +44,26 @@ def reply_message(reply_token, messages):
             pass
     except Exception as e:
         print(f"Reply failed: {e}")
+
+# 📋 Helper Function: Create Quick Reply Message Object
+def make_quick_reply_message(text, options):
+    items = []
+    for opt in options:
+        items.append({
+            "type": "action",
+            "action": {
+                "type": "message",
+                "label": opt[:20],  # LINE label character limit is 20
+                "text": opt
+            }
+        })
+    return {
+        "type": "text",
+        "text": text,
+        "quickReply": {
+            "items": items
+        }
+    }
 
 # ✂️ Helper Function: Split Long Messages (ป้องกันเกินลิมิต 5,000 ตัวอักษรของ LINE)
 def split_message(text, max_len=4500):
@@ -105,7 +133,7 @@ def generate_character_gemini(answers):
         "ชื่อจริง / ชื่อเล่น / เพศ / อายุ / สัญชาติ / อาชีพหรือสถานะในเนื้อเรื่อง / การศึกษาหรือภูมิหลัง / รูปร่าง (ส่วนสูง-น้ำหนัก) / รสนิยมทางเพศและความต้องการครอบงำ {{{{user}}}}\n"
         "👾 รูปลักษณ์ภายนอก (Appearance Details)\n"
         "บรรยายทรงผม, ใบหน้า, แววตา, รูปร่าง, รอยแผลเป็น/รอยสัก/สัญลักษณ์พิเศษ, เครื่องแต่งกายปกติ และเครื่องแต่งกายในฉากสำคัญ\n"
-        "✨ เสน่ห์หรือกลิ่นประจำตัว: (บรรยายฟีลลิ่ง น้ำหอม หรือกลิ่นอายที่แผ่ออกมาจากตัวละครที่กระตุ้นอารมณ์ได้ดี)\n"
+        "✨ เสน่ห์หรือกลิ่นประจำตัว: (บรรยายฟีลลิ่ง น้ำหอม หรือกลิ่นอายที่แผ่ออกมาจากตัวละครที่กระตุณ์อารมณ์ได้ดี)\n"
         "🧠 ลักษณะนิสัยและพฤติกรรม (Personality & Psychology)\n"
         "จุดเด่นทางอารมณ์, พฤติกรรมเมื่ออยู่กับ {{{{user}}}} (เน้นความสัมพันธ์แบบมีอำนาจเหนือกว่า หรือเคมีที่ดึงดูดกันรุนแรง), ความย้อนแย้งในใจ (เช่น ปากแข็งแต่คลั่งรัก หรือทำเป็นนิ่งแต่หึงโหด)\n"
         "🔞 รสนิยมและพฤติกรรมทางเพศ (18+ Sexual Preferences)\n"
@@ -145,8 +173,11 @@ def generate_character_gemini(answers):
         "บทพูดปิดท้ายขู่เข็ญ: (ประโยคคำขู่ที่แฝงความเร่าร้อน/18+ ประกาศว่าจะสั่งสอนหรือบีบให้ยอมจำนนนอนตัวสั่นอยู่ใต้ร่างในคืนนี้)\n"
         "ทิ้งท้ายฉาก: บรรยายสายตาคมดุดันและท่าทางสุดท้าย of บอทที่กำลังกดดัน บดสะโพกเน้นย้ำ และรอคอยการโต้ตอบจาก {{{{user}}}} (เปิดโอกาสให้ User เลือกพิมพ์ตอบตามแนวทางสายแข็งหรือสายอ่อน)\n\n"
         "📥 ข้อมูลตั้งต้นที่ฉันต้องการให้คุณนำไปเขียนบอทคือ:\n"
-        f"แนวเรื่อง / ธีม: {answers.get('genre')}\n"
         f"ชื่อตัวละคร (บอท): {answers.get('name')}\n"
+        f"อายุตัวละคร: {answers.get('age')}\n"
+        f"เพศตัวละคร: {answers.get('gender')}\n"
+        f"อาชีพตัวละคร: {answers.get('occupation')}\n"
+        f"แนวเรื่อง / ธีม: {answers.get('genre')}\n"
         f"ความสัมพันธ์กับ {{{{user}}}}: {answers.get('relation')}\n"
         f"ฉากเริ่มต้น: {answers.get('scene')}\n\n"
         "ให้ตอบกลับมาเป็นรูปแบบโครงสร้าง JSON เสมอ ห้ามตอบเป็นความเรียงปกติ โดยแยกคีย์ดังนี้:\n"
@@ -255,11 +286,14 @@ def get_confirmation_summary(answers):
     return (
         "📝 **ตรวจสอบความถูกต้องสเปคบอท:**\n"
         f"1️⃣ **ชื่อตัวละคร:** {answers.get('name')}\n"
-        f"2️⃣ **แนวเรื่อง / ธีม:** {answers.get('genre')}\n"
-        f"3️⃣ **ความสัมพันธ์:** {answers.get('relation')}\n"
-        f"4️⃣ **ฉากเริ่มต้น:** {answers.get('scene')}\n\n"
+        f"2️⃣ **อายุตัวละคร:** {answers.get('age')}\n"
+        f"3️⃣ **เพศตัวละคร:** {answers.get('gender')}\n"
+        f"4️⃣ **อาชีพตัวละคร:** {answers.get('occupation')}\n"
+        f"5️⃣ **แนวเรื่อง / ธีม:** {answers.get('genre')}\n"
+        f"6️⃣ **ความสัมพันธ์:** {answers.get('relation')}\n"
+        f"7️⃣ **ฉากเริ่มต้น:** {answers.get('scene')}\n\n"
         "👉 พิมพ์ **'ยืนยัน'** เพื่อเริ่มแต่งเนื้อหาทันที\n"
-        "👉 หรือพิมพ์ **'แก้ไข [หมายเลข]'** (เช่น `แก้ไข 2`) เพื่อเปลี่ยนคำตอบข้อนั้นค่ะ! 😤"
+        "👉 หรือพิมพ์ **'แก้ไข [หมายเลข]'** (เช่น `แก้ไข 2`) เพื่อเปลี่ยนคำตอบข้อนั้นซิ! 😤"
     )
 
 # ⚙️ กระบวนการเบื้องหลัง: เจนภาพ/ข้อความ และส่ง Push กลับเข้า Line
@@ -275,7 +309,7 @@ def process_and_send(user_id, answers):
         "👥 [ส่วนที่ 2: บทบาทผู้เล่น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องบทบาท)*\n\n" + result.get("role", "ไม่มีข้อมูล"),
         "🌧️ [ส่วนที่ 3: สถานการณ์]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องสถานการณ์)*\n\n" + result.get("scenario", "ไม่มีข้อมูล"),
         "💬 [ส่วนที่ 4: คำทักทายเริ่มต้น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องคำทักทายเริ่มต้น)*\n\n" + result.get("greeting", "ไม่มีข้อมูล"),
-        "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วย่ะ! 🙄\n\n💡 **ทริกเพิ่มเติม:** หากนายอยากให้ฉันแก้ไขส่วนไหนและแต่งส่งใหม่อีกรอบ ก็พิมพ์บอกได้เลยนะ! เช่น พิมพ์ว่า **'แก้ไข 2'** เพื่อเปลี่ยนแนวเรื่องเฉพาะข้อนั้น แล้วสั่งปั้นใหม่ได้เลย ตาบ้า! 🖤"
+        "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วย่ะ! 🙄\n\n💡 **ทริกเพิ่มเติม:** หากนายอยากให้ฉันแก้ไขส่วนไหนและแต่งส่งใหม่อีกรอบ ก็พิมพ์บอกได้เลยนะ! เช่น พิมพ์ว่า **'แก้ไข 2'** เพื่อเปลี่ยนอายุตัวละคร แล้วสั่งปั้นใหม่ได้เลย ตาบ้า! 🖤"
     ]
     
     push_message(user_id, messages)
@@ -301,7 +335,7 @@ def callback():
                     user_states[user_id] = {
                         "in_interview": False,
                         "step": 1,
-                        "answers": {"name": "", "genre": "", "relation": "", "scene": ""}
+                        "answers": {"name": "", "age": "", "gender": "", "occupation": "", "genre": "", "relation": "", "scene": ""}
                     }
                     
                 state = user_states[user_id]
@@ -318,9 +352,9 @@ def callback():
                 if user_text == "เริ่มใหม่":
                     state["in_interview"] = True
                     state["step"] = 1
-                    state["answers"] = {"name": "", "genre": "", "relation": "", "scene": ""}
+                    state["answers"] = {"name": "", "age": "", "gender": "", "occupation": "", "genre": "", "relation": "", "scene": ""}
                     reply_message(reply_token, [
-                        "หืม? ยอมพิมพ์คำว่า 'เริ่มใหม่' แล้วหรอยะ? 🙄 ก็ได้... ฉันจะช่วยนายแต่งนิยายสเปคบอทตัวละครยาว ๆ ไปใช้สร้างใน Khui AI ให้เอง! ถือว่าช่วยโอตาคุด้วยกันหรอกนะ!\n\n👉 **ขั้นตอนที่ 1:** บอทที่จะแต่งชื่ออะไรและอยากให้อายุเท่าไหร่? (พิมพ์ระบุชื่อพร้อมระบุอายุมาได้เลยนะย่ะ เช่น 'คิง อายุ 21 ปี', 'อคิน อายุ 19' หรือจะพิมพ์แค่ชื่ออย่างเดียวก็ได้ย่ะ!)"
+                        "หืม? ยอมพิมพ์คำว่า 'เริ่มใหม่' แล้วหรอยะ? 🙄 ก็ได้... ฉันจะช่วยนายแต่งสเปคบอทตัวละครยาว ๆ ของ Khui AI ให้เอง! ถือว่าช่วยโอตาคุด้วยกันหรอกนะ!\n\n👉 **ขั้นตอนที่ 1:** บอทที่จะแต่งชื่ออะไรดีล่ะย่ะ? (พิมพ์เฉพาะชื่อตัวละครส่งมาได้เลย!)"
                     ])
                     continue
                 
@@ -328,40 +362,82 @@ def callback():
                 if state.get("in_interview"):
                     current_step = state["step"]
                     
-                    # สเต็ปที่ 1: ชื่อบอท
+                    # สเต็ปที่ 1: ชื่อบอท -> อายุ
                     if current_step == 1:
                         state["answers"]["name"] = user_text
                         state["step"] = 2
-                        reply_message(reply_token, [
-                            f"บันทึกชื่อตัวละคร: '{user_text}' ไปแล้วย่ะ 👤\n\n👉 **ขั้นตอนที่ 2:** แนวเรื่อง / ธีม ของบอทตัวนี้คือแนวไหน? (เช่น มาเฟียคาสิโน, รักอบอุ่น, แฟนเก่าหึงโหด, หรือคู่ปรับสนามซิ่งดุดัน 18+... บอกฉันมาดี ๆ สิ!)"
-                        ])
+                        opts = ["18 ปี", "19 ปี", "20 ปี", "21 ปี", "22 ปี", "25 ปี", "30 ปี"]
+                        msg = make_quick_reply_message(
+                            f"บันทึกชื่อตัวละคร: '{user_text}' ไปแล้วย่ะ 👤\n\n👉 **ขั้นตอนที่ 2:** อายุของตัวละครเท่าไหร่หรอ? (พิมพ์ระบุอายุมาได้เลย หรือเลือกกดคำแนะนำด้านล่างนี้นะย่ะ!)",
+                            opts
+                        )
+                        reply_message(reply_token, [msg])
                         
-                    # สเต็ปที่ 2: แนวเรื่อง
+                    # สเต็ปที่ 2: อายุ -> เพศ
                     elif current_step == 2:
-                        state["answers"]["genre"] = user_text
+                        state["answers"]["age"] = user_text
                         state["step"] = 3
-                        reply_message(reply_token, [
-                            f"บันทึกแนวเรื่อง/ธีม: '{user_text}' ไปเรียบร้อยล่ะ 🎬\n\n👉 **ขั้นตอนที่ 3:** ความสัมพันธ์ระหว่างบอทตัวนี้กับตัวนาย ({{{{user}}}}) เป็นยังไง? (เช่น เจ้าหนี้มาเฟียจอมเผด็จการกับลูกหนี้, หรือคู่อริที่แอบคิดไม่ซื่อ... พิมพ์มา อย่าอ้อมค้อม!)"
-                        ])
+                        opts = ["ชาย", "หญิง", "ชายรักชาย (Yaoi)", "หญิงรักหญิง (Yuri)", "ไม่ระบุเพศ"]
+                        msg = make_quick_reply_message(
+                            f"บันทึกอายุตัวละคร: '{user_text}' ไปแล้วย่ะ 🎂\n\n👉 **ขั้นตอนที่ 3:** เพศของตัวละครล่ะ? (พิมพ์ระบุมา หรือเลือกกดตัวเลือกด้านล่างนี้เลย!)",
+                            opts
+                        )
+                        reply_message(reply_token, [msg])
                         
-                    # สเต็ปที่ 3: ความสัมพันธ์
+                    # สเต็ปที่ 3: เพศ -> อาชีพ
                     elif current_step == 3:
-                        state["answers"]["relation"] = user_text
+                        state["answers"]["gender"] = user_text
                         state["step"] = 4
-                        reply_message(reply_token, [
-                            f"บันทึกความสัมพันธ์: '{user_text}' ให้แล้วนะ ⛓️\n\n👉 **ขั้นตอนที่ 4:** ฉากเริ่มต้นเปิดเรื่องจะเอาแบบไหนล่ะ? เกิดที่ไหนและทำอะไรกันอยู่? (เช่น ในห้องทำงานตอนไฟดับพายุเข้า หรือในโรงรถตอนฟ้าร้องแล้วนายกำลังตัวสั่น... พิมพ์มาให้ละเอียดเลยนะ!)"
-                        ])
+                        opts = ["มาเฟีย", "ประธานบริษัท", "นักซิ่งรถ", "นักศึกษาแพทย์", "อาจารย์หนุ่ม", "บอดี้การ์ด"]
+                        msg = make_quick_reply_message(
+                            f"บันทึกเพศตัวละคร: '{user_text}' เรียบร้อยย่ะ ⚧️\n\n👉 **ขั้นตอนที่ 4:** อาชีพหรือสถานะในเนื้อเรื่องของบอทคืออะไร? (พิมพ์บอกมา หรือกดคำแนะนำด้านล่างเลย!)",
+                            opts
+                        )
+                        reply_message(reply_token, [msg])
                         
-                    # สเต็ปที่ 4: ฉากเริ่มต้น -> ไปหน้าตรวจสอบความถูกต้อง (Step 5)
+                    # สเต็ปที่ 4: อาชีพ -> แนวเรื่อง
                     elif current_step == 4:
-                        state["answers"]["scene"] = user_text
+                        state["answers"]["occupation"] = user_text
                         state["step"] = 5
+                        opts = ["รักดราม่าหน่วงๆ", "โรแมนติกคอมเมดี้", "แฟนเก่ารักหึงโหด", "มาเฟียล่ารัก 18+", "ศัตรูที่รัก"]
+                        msg = make_quick_reply_message(
+                            f"บันทึกอาชีพตัวละคร: '{user_text}' แล้วย่ะ 💼\n\n👉 **ขั้นตอนที่ 5:** แนวเรื่อง / ธีม ของบอทตัวนี้คือแนวไหน? (พิมพ์บอกแนวที่ชอบ หรือเลือกตัวเลือกยอดฮิตด้านล่างนี้นะ!)",
+                            opts
+                        )
+                        reply_message(reply_token, [msg])
+                        
+                    # สเต็ปที่ 5: แนวเรื่อง -> ความสัมพันธ์
+                    elif current_step == 5:
+                        state["answers"]["genre"] = user_text
+                        state["step"] = 6
+                        opts = ["เจ้าหนี้มาเฟียกับลูกหนี้", "ประธานจอมหยิ่งกับเลขา", "อริคู่แข่งสนามแข่งรถ", "แฟนเก่าปากแข็งคลั่งรัก"]
+                        msg = make_quick_reply_message(
+                            f"บันทึกแนวเรื่อง/ธีม: '{user_text}' ไปแล้วนะ 🎬\n\n👉 **ขั้นตอนที่ 6:** ความสัมพันธ์ระหว่างบอทตัวนี้กับตัวนาย ({{{{user}}}}) เป็นยังไง? (พิมพ์รายละเอียดมา หรือเลือกจากด้านล่างนี้ได้เลยย่ะ!)",
+                            opts
+                        )
+                        reply_message(reply_token, [msg])
+                        
+                    # สเต็ปที่ 6: ความสัมพันธ์ -> ฉากเริ่มต้น
+                    elif current_step == 6:
+                        state["answers"]["relation"] = user_text
+                        state["step"] = 7
+                        opts = ["ในโรงรถตอนฟ้าร้องดังลั่น", "ในห้องปิดตายตอนไฟดับ", "ในลิฟต์ที่ค้างอยู่สองคน", "ในห้องทำงานของประธานบริษัท"]
+                        msg = make_quick_reply_message(
+                            f"บันทึกความสัมพันธ์: '{user_text}' ให้แล้วนะ ⛓️\n\n👉 **ขั้นตอนที่ 7:** ฉากเริ่มต้นเปิดเรื่องจะเอาแบบไหนดีล่ะ? เกิดที่ไหนและทำอะไรกันอยู่? (พิมพ์มาได้เต็มที่ หรือเลือกฉากแนะนำด้านล่างนี้นะย่ะ!)",
+                            opts
+                        )
+                        reply_message(reply_token, [msg])
+                        
+                    # สเต็ปที่ 7: ฉากเริ่มต้น -> ไปหน้าตรวจสอบความถูกต้อง (Step 8)
+                    elif current_step == 7:
+                        state["answers"]["scene"] = user_text
+                        state["step"] = 8
                         reply_message(reply_token, [
                             "บันทึกข้อมูลสเปคครบถ้วนแล้วย่ะ! 📝\n\n" + get_confirmation_summary(state["answers"])
                         ])
                         
-                    # สเต็ปที่ 5: หน้าจอทบทวนความถูกต้อง (Confirmation Screen)
-                    elif current_step == 5:
+                    # สเต็ปที่ 8: หน้าจอทบทวนความถูกต้อง (Confirmation Screen)
+                    elif current_step == 8:
                         # ตรวจสอบการพิมพ์ ยืนยัน
                         if user_text in ["ยืนยัน", "คอนเฟิร์ม", "yes", "confirm", "ok"]:
                             answers = state["answers"]
@@ -375,34 +451,36 @@ def callback():
                         
                         # ตรวจสอบการพิมพ์ แก้ไข [หมายเลข]
                         else:
-                            match = re.search(r'(?:แก้ไข|แก้)\s*([1-4])', user_text)
+                            match = re.search(r'(?:แก้ไข|แก้)\s*([1-7])', user_text)
                             if match:
                                 edit_num = int(match.group(1))
                                 state["editing_step"] = edit_num
-                                state["step"] = 6
+                                state["step"] = 9
                                 
-                                if edit_num == 1:
-                                    reply_message(reply_token, ["เปลี่ยนชื่อตัวละครเป็นอะไรดีล่ะ? พิมพ์ชื่อใหม่มาเลยย่ะ! 👤"])
-                                elif edit_num == 2:
-                                    reply_message(reply_token, ["เปลี่ยนแนวเรื่อง/ธีมเป็นอะไรล่ะ? พิมพ์แนวใหม่มาเลย! 🎬"])
-                                elif edit_num == 3:
-                                    reply_message(reply_token, ["เปลี่ยนความสัมพันธ์กับ {{{{user}}}} เป็นแบบไหน? พิมพ์สเปคใหม่มาเลย! ⛓️"])
-                                elif edit_num == 4:
-                                    reply_message(reply_token, ["เปลี่ยนฉากเริ่มต้นเปิดเรื่องเป็นแบบไหน? พิมพ์รายละเอียดฉากใหม่มาเลย! 🌧️"])
+                                prompt_by_num = {
+                                    1: "เปลี่ยนชื่อตัวละครเป็นอะไรดีล่ะ? พิมพ์ชื่อใหม่มาเลยย่ะ! 👤",
+                                    2: "เปลี่ยนอายุตัวละครเป็นเท่าไหร่? พิมพ์อายุใหม่มาเลยย่ะ! 🎂",
+                                    3: "เปลี่ยนเพศตัวละครเป็นเพศไหน? พิมพ์เพศใหม่มาเลยย่ะ! ⚧️",
+                                    4: "เปลี่ยนอาชีพตัวละครเป็นอะไร? พิมพ์อาชีพใหม่มาเลยย่ะ! 💼",
+                                    5: "เปลี่ยนแนวเรื่อง/ธีมเป็นอะไรล่ะ? พิมพ์แนวใหม่มาเลย! 🎬",
+                                    6: "เปลี่ยนความสัมพันธ์กับ {{{{user}}}} เป็นแบบไหน? พิมพ์สเปคใหม่มาเลย! ⛓️",
+                                    7: "เปลี่ยนฉากเริ่มต้นเปิดเรื่องเป็นแบบไหน? พิมพ์รายละเอียดฉากใหม่มาเลย! 🌧️"
+                                }
+                                reply_message(reply_token, [prompt_by_num.get(edit_num, "ระบุข้อที่ถูกต้องสิย่ะ!")])
                             else:
                                 reply_message(reply_token, [
                                     "พิมพ์ 'ยืนยัน' เพื่อเริ่มแต่งบอท หรือพิมพ์ 'แก้ไข [ตัวเลข]' (เช่น แก้ไข 2) เพื่อเปลี่ยนคำตอบข้อนั้นซิ ตาบ้า! 🙄\n\n" + get_confirmation_summary(state["answers"])
                                 ])
                                 
-                    # สเต็ปที่ 6: รับคำตอบใหม่ที่แก้ไขแล้ว
-                    elif current_step == 6:
+                    # สเต็ปที่ 9: รับคำตอบใหม่ที่แก้ไขแล้ว
+                    elif current_step == 9:
                         edit_num = state.get("editing_step", 1)
-                        keys = {1: "name", 2: "genre", 3: "relation", 4: "scene"}
+                        keys = {1: "name", 2: "age", 3: "gender", 4: "occupation", 5: "genre", 6: "relation", 7: "scene"}
                         target_key = keys.get(edit_num, "name")
                         
                         # บันทึกค่าแก้ไข
                         state["answers"][target_key] = user_text
-                        state["step"] = 5 # กลับไปหน้ายืนยันข้อมูล
+                        state["step"] = 8 # กลับไปหน้ายืนยันข้อมูล
                         state["editing_step"] = None
                         
                         reply_message(reply_token, [
@@ -412,22 +490,24 @@ def callback():
                 # ถ้าคุยเล่นทั่วไป (Free-form Chat)
                 else:
                     # ตรวจสอบว่าผู้ใช้พิมพ์ แก้ไข [หมายเลข] เพื่อมาปรับสเปคตัวละครเดิมย้อนหลังหรือไม่
-                    match = re.search(r'(?:แก้ไข|แก้)\s*([1-4])', user_text)
+                    match = re.search(r'(?:แก้ไข|แก้)\s*([1-7])', user_text)
                     if match and state["answers"].get("name"):
                         edit_num = int(match.group(1))
                         state["in_interview"] = True
                         state["editing_step"] = edit_num
-                        state["step"] = 6
+                        state["step"] = 9
                         
                         prefix = f"หืม? จะกลับมาแก้ไขสเปคตัวละคร '{state['answers']['name']}' ย้อนหลังงั้นหรอ? 🙄 ได้สิ...\n\n"
-                        if edit_num == 1:
-                            reply_message(reply_token, [prefix + "เปลี่ยนชื่อตัวละครเป็นอะไรดีล่ะ? พิมพ์ชื่อใหม่มาเลยย่ะ! 👤"])
-                        elif edit_num == 2:
-                            reply_message(reply_token, [prefix + "เปลี่ยนแนวเรื่อง/ธีมเป็นอะไรล่ะ? พิมพ์แนวใหม่มาเลย! 🎬"])
-                        elif edit_num == 3:
-                            reply_message(reply_token, [prefix + "เปลี่ยนความสัมพันธ์กับ {{{{user}}}} เป็นแบบไหน? พิมพ์สเปคใหม่มาเลย! ⛓️"])
-                        elif edit_num == 4:
-                            reply_message(reply_token, [prefix + "เปลี่ยนฉากเริ่มต้นเปิดเรื่องเป็นแบบไหน? พิมพ์รายละเอียดฉากใหม่มาเลย! 🌧️"])
+                        prompt_by_num = {
+                            1: "เปลี่ยนชื่อตัวละครเป็นอะไรดีล่ะ? พิมพ์ชื่อใหม่มาเลยย่ะ! 👤",
+                            2: "เปลี่ยนอายุตัวละครเป็นเท่าไหร่? พิมพ์อายุใหม่มาเลยย่ะ! 🎂",
+                            3: "เปลี่ยนเพศตัวละครเป็นเพศไหน? พิมพ์เพศใหม่มาเลยย่ะ! ⚧️",
+                            4: "เปลี่ยนอาชีพตัวละครเป็นอะไร? พิมพ์อาชีพใหม่มาเลยย่ะ! 💼",
+                            5: "เปลี่ยนแนวเรื่อง/ธีมเป็นอะไรล่ะ? พิมพ์แนวใหม่มาเลย! 🎬",
+                            6: "เปลี่ยนความสัมพันธ์กับ {{{{user}}}} เป็นแบบไหน? พิมพ์สเปคใหม่มาเลย! ⛓️",
+                            7: "เปลี่ยนฉากเริ่มต้นเปิดเรื่องเป็นแบบไหน? พิมพ์รายละเอียดฉากใหม่มาเลย! 🌧️"
+                        }
+                        reply_message(reply_token, [prefix + prompt_by_num.get(edit_num, "ระบุข้อที่ถูกต้องสิย่ะ!")])
                     
                     else:
                         # คุยเล่นผ่าน Gemini
