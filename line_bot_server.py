@@ -180,14 +180,16 @@ def generate_character_gemini(answers):
         f"แนวเรื่อง / ธีม: {answers.get('genre')}\n"
         f"ความสัมพันธ์กับ {{{{user}}}}: {answers.get('relation')}\n"
         f"ฉากเริ่มต้น: {answers.get('scene')}\n\n"
-        "ให้ตอบกลับมาเป็นรูปแบบโครงสร้าง JSON เสมอ ห้ามตอบเป็นความเรียงปกติ โดยแยกคีย์ดังนี้:\n"
-        "{\n"
-        '  "bio": "ข้อความยาวใส่ช่องประวัติตัวละคร",\n'
-        '  "role": "ข้อความยาวใส่ช่องบทบาทผู้เล่น",\n'
-        '  "scenario": "ข้อความยาวใส่ช่องสถานการณ์",\n'
-        '  "greeting": "ข้อความยาวใส่ช่องคำทักทายเริ่มต้น"\n'
-        "}\n\n"
-        "ห้ามตอบข้อความใดๆ นอกเหนือจากรูปแบบ JSON นี้เด็ดขาด"
+        "คุณต้องจัดรูปแบบการตอบกลับโดยแบ่งเป็น 4 ส่วนอย่างชัดเจน และคั่นด้วยหัวข้อที่เป็นบรรทัดเฉพาะที่มีคำสำคัญเหล่านี้เป๊ะๆ (ห้ามใส่สัญลักษณ์อื่นใด เช่น ดอกจัน หรือขีดอื่นๆ รอบคำสำคัญเหล่านี้ และห้ามเขียนเป็น JSON):\n\n"
+        "===== CHARACTER_CHARACTERIZATION =====\n"
+        "(เนื้อหาข้อความยาวเพื่อใส่ในช่องประวัติตัวละคร)\n\n"
+        "===== ROLEPLAY_FRAMEWORK =====\n"
+        "(เนื้อหาข้อความยาวเพื่อใส่ในช่องบทบาทผู้เล่น)\n\n"
+        "===== SCENARIO_SETUP =====\n"
+        "(เนื้อหาข้อความยาวเพื่อใส่ในช่องสถานการณ์)\n\n"
+        "===== FIRST_MESSAGE =====\n"
+        "(เนื้อหาข้อความยาวเพื่อใส่ในช่องคำทักทายเริ่มต้น)\n\n"
+        "ห้ามเขียนคำนำหน้าหรือสรุปท้ายใดๆ นอกเหนือจาก 4 ส่วนนี้เด็ดขาด"
     )
     
     payload = {
@@ -202,9 +204,6 @@ def generate_character_gemini(answers):
             "parts": [
                 {"text": system_instruction}
             ]
-        },
-        "generationConfig": {
-            "responseMimeType": "application/json"
         }
     }
     
@@ -219,15 +218,39 @@ def generate_character_gemini(answers):
             response_data = json.loads(raw_response)
             text_response = response_data['candidates'][0]['content']['parts'][0]['text'].strip()
             
-            if text_response.startswith("```"):
-                lines = text_response.splitlines()
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines[-1].startswith("```"):
-                    lines = lines[:-1]
-                text_response = "\n".join(lines).strip()
+            sections = {
+                "bio": "ไม่มีข้อมูล",
+                "role": "ไม่มีข้อมูล",
+                "scenario": "ไม่มีข้อมูล",
+                "greeting": "ไม่มีข้อมูล"
+            }
+            
+            markers = [
+                ("bio", "===== CHARACTER_CHARACTERIZATION ====="),
+                ("role", "===== ROLEPLAY_FRAMEWORK ====="),
+                ("scenario", "===== SCENARIO_SETUP ====="),
+                ("greeting", "===== FIRST_MESSAGE =====")
+            ]
+            
+            positions = []
+            for key, marker in markers:
+                pos = text_response.find(marker)
+                if pos != -1:
+                    positions.append((key, pos, len(marker)))
+                    
+            positions.sort(key=lambda x: x[1])
+            
+            for i in range(len(positions)):
+                key, start_pos, marker_len = positions[i]
+                content_start = start_pos + marker_len
+                if i + 1 < len(positions):
+                    content_end = positions[i+1][1]
+                    content = text_response[content_start:content_end].strip()
+                else:
+                    content = text_response[content_start:].strip()
+                sections[key] = content
                 
-            return json.loads(text_response)
+            return sections
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8')
         print(f"Gemini API HTTP Error ({e.code}): {e.reason}")
