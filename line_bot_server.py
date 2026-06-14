@@ -275,7 +275,7 @@ def process_and_send(user_id, answers):
         "👥 [ส่วนที่ 2: บทบาทผู้เล่น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องบทบาท)*\n\n" + result.get("role", "ไม่มีข้อมูล"),
         "🌧️ [ส่วนที่ 3: สถานการณ์]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องสถานการณ์)*\n\n" + result.get("scenario", "ไม่มีข้อมูล"),
         "💬 [ส่วนที่ 4: คำทักทายเริ่มต้น]\n*(คัดลอกข้อความด้านล่างนี้ไปใส่ในช่องคำทักทายเริ่มต้น)*\n\n" + result.get("greeting", "ไม่มีข้อมูล"),
-        "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วย่ะ! 🙄 อุตส่าห์เขียนให้ยาวจัดเต็มนิยายระดับเทพเชียวนะ เอาไปใส่ในระบบสิ! ถ้าอยากสร้างตัวใหม่เมื่อไหร่ก็แค่พิมพ์ 'เริ่มใหม่' ละกันนะ ตาบ้า! 🖤"
+        "✨ ปั้นตัวละครเสร็จสมบูรณ์เรียบร้อยแล้วย่ะ! 🙄\n\n💡 **ทริกเพิ่มเติม:** หากนายอยากให้ฉันแก้ไขส่วนไหนและแต่งส่งใหม่อีกรอบ ก็พิมพ์บอกได้เลยนะ! เช่น พิมพ์ว่า **'แก้ไข 2'** เพื่อเปลี่ยนแนวเรื่องเฉพาะข้อนั้น แล้วสั่งปั้นใหม่ได้เลย ตาบ้า! 🖤"
     ]
     
     push_message(user_id, messages)
@@ -365,7 +365,7 @@ def callback():
                         # ตรวจสอบการพิมพ์ ยืนยัน
                         if user_text in ["ยืนยัน", "คอนเฟิร์ม", "yes", "confirm", "ok"]:
                             answers = state["answers"]
-                            state["in_interview"] = False # ออกจากสัมภาษณ์หลังกดยืนยัน
+                            state["in_interview"] = False # ออกจากสัมภาษณ์หลังกดยืนยัน (แต่เก็บคำตอบไว้ใน state เพื่อให้แก้ไขภายหลังได้)
                             
                             reply_message(reply_token, [
                                 "ได้รับคำยืนยันแล้วล่ะ! 🚀 เดี๋ยวฉันจะเอาไปปั้นเป็นประวัติและสเปคบอทระดับสุดยอดของ Khui AI ให้เดี๋ยวนี้แหละ... ก็นะ นั่งรอเงียบ ๆ สัก 30 วินาทีล่ะ ห้ามกวนใจเด็ดขาดนะ! 🖤"
@@ -411,9 +411,28 @@ def callback():
                 
                 # ถ้าคุยเล่นทั่วไป (Free-form Chat)
                 else:
-                    # คุยเล่นผ่าน Gemini
-                    reply_text = generate_free_chat_gemini(user_text)
-                    reply_message(reply_token, [reply_text])
+                    # ตรวจสอบว่าผู้ใช้พิมพ์ แก้ไข [หมายเลข] เพื่อมาปรับสเปคตัวละครเดิมย้อนหลังหรือไม่
+                    match = re.search(r'(?:แก้ไข|แก้)\s*([1-4])', user_text)
+                    if match and state["answers"].get("name"):
+                        edit_num = int(match.group(1))
+                        state["in_interview"] = True
+                        state["editing_step"] = edit_num
+                        state["step"] = 6
+                        
+                        prefix = f"หืม? จะกลับมาแก้ไขสเปคตัวละคร '{state['answers']['name']}' ย้อนหลังงั้นหรอ? 🙄 ได้สิ...\n\n"
+                        if edit_num == 1:
+                            reply_message(reply_token, [prefix + "เปลี่ยนชื่อตัวละครเป็นอะไรดีล่ะ? พิมพ์ชื่อใหม่มาเลยย่ะ! 👤"])
+                        elif edit_num == 2:
+                            reply_message(reply_token, [prefix + "เปลี่ยนแนวเรื่อง/ธีมเป็นอะไรล่ะ? พิมพ์แนวใหม่มาเลย! 🎬"])
+                        elif edit_num == 3:
+                            reply_message(reply_token, [prefix + "เปลี่ยนความสัมพันธ์กับ {{{{user}}}} เป็นแบบไหน? พิมพ์สเปคใหม่มาเลย! ⛓️"])
+                        elif edit_num == 4:
+                            reply_message(reply_token, [prefix + "เปลี่ยนฉากเริ่มต้นเปิดเรื่องเป็นแบบไหน? พิมพ์รายละเอียดฉากใหม่มาเลย! 🌧️"])
+                    
+                    else:
+                        # คุยเล่นผ่าน Gemini
+                        reply_text = generate_free_chat_gemini(user_text)
+                        reply_message(reply_token, [reply_text])
                     
     except Exception as e:
         print(f"Error handling event: {e}")
